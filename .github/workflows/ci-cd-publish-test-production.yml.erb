@@ -1,0 +1,214 @@
+<%= editing_warning_comment %>
+
+name: 'CI/CD: publish & test against production repos'
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  ### Publish packages to production repo ###
+
+  publish_packages_production:
+    name: Publish packages to production repos
+    runs-on: ubuntu-20.04
+    needs:
+      - determine_necessary_jobs
+      - commit_published_packages_test
+      <%- distributions.each do |distribution| -%>
+      <%- ruby_package_versions.each do |ruby_package_version| -%>
+      - 'test_packages_against_test_<%= slug(distribution[:name]) %>_<%= slug(ruby_package_version[:id]) %> %>'
+      <%- end -%>
+      <%- end -%>
+    # We don't care whether any 'Test packages against test' jobs
+    # have been skipped. We only care whether 'Commit packages to
+    # test repo' has been skipped, because that indicates a failure
+    # in one of its transitive dependencies (e.g. 'Build Ruby').
+    if: |
+      needs.commit_published_packages_test.result == 'success'
+      && !failure() && !cancelled()
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Login to Google Cloud
+        uses: ./.github/actions/gcloud-login
+        with:
+          private_key: ${{ secrets.GCLOUD_KEY }}
+
+      - name: Download fullstaq-common DEB
+        uses: ./.github/actions/download-artifact
+        with:
+          name: <%= common_deb_artifact_name %>
+          path: .
+      - name: Download fullstaq-common RPM
+        uses: ./.github/actions/download-artifact
+        with:
+          name: <%= common_rpm_artifact_name %>
+          path: .
+      - name: Download Rbenv DEB
+        uses: ./.github/actions/download-artifact
+        with:
+          name: <%= rbenv_deb_artifact_name %>
+          path: .
+      - name: Download Rbenv RPM
+        uses: ./.github/actions/download-artifact
+        with:
+          name: <%= rbenv_rpm_artifact_name %>
+          path: .
+
+      <%- ruby_package_artifact_names.each do |artifact_name| %>
+      <%- unindent(2) do -%>
+        - name: Fetch <%= artifact_name %>
+          uses: ./.github/actions/download-artifact
+          with:
+            name: <%= artifact_name %>
+            path: .
+      <%- end -%>
+      <%- end %>
+
+      - name: Download Docker image necessary for publishing
+        uses: ./.github/actions/download-artifact
+        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
+        with:
+          name: docker-image-utility
+          path: .
+      - name: Load Docker image necessary for publishing
+        run: ./internal-scripts/ci-cd/load-docker-image.sh
+        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
+        env:
+          TARBALL: image.tar.zst
+
+      - name: Determine latest release tag
+        # Sets environment variable $LATEST_RELEASE_TAG
+        run: ./internal-scripts/ci-cd/check-version-numbers-need-changing/determine-latest-release-tag.sh
+      - name: Determine Bintray repository package version
+        # Sets environment variable $REPO_PACKAGE_VERSION
+        run: ./internal-scripts/ci-cd/publish/determine-repo-package-version.sh
+
+      - name: Upload DEBs to repo
+        run: ./internal-scripts/ci-cd/publish/publish-debs.sh *.deb
+        env:
+          BINTRAY_API_USERNAME: ${{ secrets.BINTRAY_API_USERNAME }}
+          BINTRAY_API_KEY: ${{ secrets.BINTRAY_API_KEY }}
+          REPO_NAME: fullstaq-ruby-apt
+          DRY_RUN: ${{ github.ref != 'refs/heads/main' }}
+          IGNORE_EXISTING: true
+
+      - name: Commit files published to APT repo
+        run: ./internal-scripts/ci-cd/publish/commit-published-packages.sh
+        env:
+          BINTRAY_API_USERNAME: ${{ secrets.BINTRAY_API_USERNAME }}
+          BINTRAY_API_KEY: ${{ secrets.BINTRAY_API_KEY }}
+          REPO_NAME: fullstaq-ruby-apt
+
+      - name: Upload RPMs to repo
+        run: ./internal-scripts/ci-cd/publish/publish-rpms.sh *.rpm
+        env:
+          BINTRAY_API_USERNAME: ${{ secrets.BINTRAY_API_USERNAME }}
+          BINTRAY_API_KEY: ${{ secrets.BINTRAY_API_KEY }}
+          REPO_NAME: fullstaq-ruby-yum
+          DRY_RUN: ${{ github.ref != 'refs/heads/main' }}
+          IGNORE_EXISTING: true
+
+      - name: Commit files published to YUM repo
+        run: ./internal-scripts/ci-cd/publish/commit-published-packages.sh
+        env:
+          BINTRAY_API_USERNAME: ${{ secrets.BINTRAY_API_USERNAME }}
+          BINTRAY_API_KEY: ${{ secrets.BINTRAY_API_KEY }}
+          REPO_NAME: fullstaq-ruby-yum
+
+
+  ### Test packages against production repos ###
+
+  <%- distributions_with_test_image_info.each do |distribution| %>
+  <%- ruby_package_versions.each do |ruby_package_version| -%>
+  <%- unindent(2) do %>
+    test_packages_against_production_<%= slug(distribution[:name]) %>_<%= slug(ruby_package_version[:id]) %>:
+      name: 'Test Ruby packages against production repos [<%= distribution[:name] %>/<%= ruby_package_version[:id] %>]'
+      runs-on: ubuntu-20.04
+      needs:
+        - determine_necessary_jobs
+        - publish_packages_production
+      if: |
+        github.ref == 'refs/heads/main'
+        && needs.publish_packages_production.result == 'success'
+        && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Test against production repo [<%= distribution[:name] %>/<%= ruby_package_version[:id] %>')
+        && !failure() && !cancelled()
+      steps:
+        - uses: actions/checkout@v2
+        - name: Login to Google Cloud
+          uses: ./.github/actions/gcloud-login
+          with:
+            private_key: ${{ secrets.GCLOUD_KEY }}
+
+        <%- variants.each do |variant| -%>
+        <%- unindent(2) do %>
+          - name: '[<%= variant[:name] %>] Run tests'
+            if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Test against production repo [<%= distribution[:name] %>/<%= ruby_package_version[:id] %>/<%= variant[:name] %>];')
+            run: ./internal-scripts/ci-cd/test-packages/run-tests.sh
+            env:
+              DISTRIBUTION_NAME: "<%= distribution[:name] %>"
+              RUBY_PACKAGE_ID: "<%= ruby_package_version[:id] %>"
+              PACKAGE_FORMAT: "<%= distribution[:package_format] %>"
+              VARIANT_NAME: "<%= variant[:name] %>"
+              VARIANT_PACKAGE_SUFFIX: "<%= variant[:package_suffix] %>"
+              TEST_IMAGE_NAME: "<%= distribution[:test_image] %>"
+              APT_REPO_URL: https://apt.fullstaqruby.org
+              YUM_REPO_URL: https://yum.fullstaqruby.org
+
+          - name: '[<%= variant[:name] %>] Create mark file'
+            if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Test against production repo [<%= distribution[:name] %>/<%= ruby_package_version[:id] %>/<%= variant[:name] %>];')
+            run: mkdir mark-<%= variant[:name] %> && touch mark-<%= variant[:name] %>/done.txt
+          - name: '[<%= variant[:name] %>] Mark job as done'
+            if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Test against production repo [<%= distribution[:name] %>/<%= ruby_package_version[:id] %>/<%= variant[:name] %>];')
+            uses: ./.github/actions/upload-artifact
+            with:
+              name: tested-against-production-<%= distribution[:name] %>_<%= ruby_package_version[:id] %>_<%= variant[:name] %>
+              path: mark-<%= variant[:name] %>
+        <%- end %>
+        <%- end -%>
+  <%- end -%>
+  <%- end -%>
+  <%- end %>
+
+
+  ### Create Git tag ###
+
+  create_git_tag:
+    name: Create Git tag
+    runs-on: ubuntu-20.04
+    needs:
+      - publish_packages_production
+      <%- distributions.each do |distribution| -%>
+      <%- ruby_package_versions.each do |ruby_package_version| -%>
+      - 'test_packages_against_production_<%= slug(distribution[:name]) %>_<%= slug(ruby_package_version[:id]) %> %>'
+      <%- end -%>
+      <%- end -%>
+    # We don't care whether any 'Test packages against production' jobs
+    # have been skipped. We only care whether 'Publish packages to
+    # production' has been skipped, because that indicates a failure
+    # in one of its transitive dependencies (e.g. 'Test packages against test'
+    # or 'Build Ruby').
+    if: |
+      needs.publish_packages_production.result == 'success'
+      && !failure() && !cancelled()
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Determine latest release version
+        # Sets environment variable $LATEST_RELEASE_TAG
+        run: ./internal-scripts/ci-cd/check-version-numbers-need-changing/determine-latest-release-tag.sh
+
+      - name: Determine next epic version
+        # Sets environment variable $NEXT_RELEASE_VERSION
+        run: ./internal-scripts/ci-cd/create-git-tag/determine-next-epic-version.sh
+
+      - name: Create Git tag
+        run: git tag epic-${{ env.NEXT_RELEASE_VERSION }}
+
+      - name: Push Git tag
+        if: github.ref == 'refs/heads/main'
+        run: git push origin epic-${{ env.NEXT_RELEASE_VERSION }}
