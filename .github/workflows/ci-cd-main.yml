@@ -382,68 +382,6 @@ jobs:
         with:
           name: ruby-src-2.7.1
           path: output
-  download_ruby_source_2_6_6:
-    name: Download Ruby source [2.6.6]
-    runs-on: ubuntu-20.04
-    needs:
-      - determine_necessary_jobs
-    if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.6.6;')
-    steps:
-      - uses: actions/checkout@v2
-      - name: Login to Google Cloud
-        uses: ./.github/actions/gcloud-login
-        with:
-          private_key: ${{ secrets.GCLOUD_KEY }}
-
-      - name: Fetch cache
-        id: fetch_cache
-        uses: actions/cache@v1
-        with:
-          path: output
-          key: v3-ruby-src-2.6.6
-
-      - name: Download
-        run: ./internal-scripts/ci-cd/download-ruby-sources/download.sh
-        if: steps.fetch_cache.outputs.cache-hit != 'true'
-        env:
-          RUBY_VERSION: 2.6.6
-
-      - name: Archive artifact
-        uses: ./.github/actions/upload-artifact
-        with:
-          name: ruby-src-2.6.6
-          path: output
-  download_ruby_source_2_5_8:
-    name: Download Ruby source [2.5.8]
-    runs-on: ubuntu-20.04
-    needs:
-      - determine_necessary_jobs
-    if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.5.8;')
-    steps:
-      - uses: actions/checkout@v2
-      - name: Login to Google Cloud
-        uses: ./.github/actions/gcloud-login
-        with:
-          private_key: ${{ secrets.GCLOUD_KEY }}
-
-      - name: Fetch cache
-        id: fetch_cache
-        uses: actions/cache@v1
-        with:
-          path: output
-          key: v3-ruby-src-2.5.8
-
-      - name: Download
-        run: ./internal-scripts/ci-cd/download-ruby-sources/download.sh
-        if: steps.fetch_cache.outputs.cache-hit != 'true'
-        env:
-          RUBY_VERSION: 2.5.8
-
-      - name: Archive artifact
-        uses: ./.github/actions/upload-artifact
-        with:
-          name: ruby-src-2.5.8
-          path: output
 
 
   download_rbenv_source:
@@ -498,8 +436,6 @@ jobs:
       - build_docker_image_ubuntu_20_04
       - build_docker_image_utility
       - download_ruby_source_2_7_1
-      - download_ruby_source_2_6_6
-      - download_ruby_source_2_5_8
     runs-on: ubuntu-20.04
     # Run even if a dependent job has been skipped
     if: '!failure() && !cancelled()'
@@ -533,10 +469,6 @@ jobs:
           false
             || (needs.download_ruby_source_2_7_1.result == 'skipped'
               && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.7.1;'))
-            || (needs.download_ruby_source_2_6_6.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.6.6;'))
-            || (needs.download_ruby_source_2_5_8.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.5.8;'))
 
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
@@ -661,28 +593,6 @@ jobs:
         with:
           name: ruby-src-2.7.1
           path: artifacts
-      - name: Download Ruby source artifact [2.6.6] from Google Cloud
-        uses: ./.github/actions/download-artifact
-        with:
-          name: ruby-src-2.6.6
-          path: artifacts
-          clear: true
-      - name: Archive Ruby source artifact [2.6.6] to Github
-        uses: actions/upload-artifact@v2
-        with:
-          name: ruby-src-2.6.6
-          path: artifacts
-      - name: Download Ruby source artifact [2.5.8] from Google Cloud
-        uses: ./.github/actions/download-artifact
-        with:
-          name: ruby-src-2.5.8
-          path: artifacts
-          clear: true
-      - name: Archive Ruby source artifact [2.5.8] to Github
-        uses: actions/upload-artifact@v2
-        with:
-          name: ruby-src-2.5.8
-          path: artifacts
 
 
   ### Trigger next workflows ###
@@ -710,10 +620,6 @@ jobs:
 
 
       - download_ruby_source_2_7_1
-
-      - download_ruby_source_2_6_6
-
-      - download_ruby_source_2_5_8
 
     runs-on: ubuntu-20.04
     # Run even if a dependent job has been skipped
@@ -748,10 +654,6 @@ jobs:
           false
             || (needs.download_ruby_source_2_7_1.result == 'skipped'
               && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.7.1;'))
-            || (needs.download_ruby_source_2_6_6.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.6.6;'))
-            || (needs.download_ruby_source_2_5_8.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.5.8;'))
 
       - name: Create check for 'Build packages'
         uses: LouisBrunner/checks-action@v1.1.0
