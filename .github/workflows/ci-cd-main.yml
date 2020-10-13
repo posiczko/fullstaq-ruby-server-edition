@@ -61,9 +61,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: Check
         run: ./internal-scripts/ci-cd/check-workflow-uptodate/check.sh
-      - name: Show differences
-        run: git diff --no-index --color .github/workflows/ci-cd.yml .github/workflows/ci-cd.yml.2
-        if: '!cancelled() && failure()'
 
 
   check_version_numbers_need_bumping:
