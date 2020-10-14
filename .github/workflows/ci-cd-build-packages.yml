@@ -77,31 +77,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs:
       - determine_necessary_jobs
-      - build_docker_image_debian_10
-    # Run even if a dependent job has been skipped
-    if: |
-      contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Jemalloc [debian-10];')
-      && !failure() && !cancelled()
+    if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Jemalloc [debian-10];')
     steps:
-      - name: Check whether 'Build Docker image' did not fail
-        run: 'false'
-        if: |
-          false
-            || (needs.build_docker_image_centos_7.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-7;'))
-            || (needs.build_docker_image_centos_8.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-8;'))
-            || (needs.build_docker_image_debian_10.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-10;'))
-            || (needs.build_docker_image_debian_9.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-9;'))
-            || (needs.build_docker_image_ubuntu_18_04.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-18.04;'))
-            || (needs.build_docker_image_ubuntu_20_04.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-20.04;'))
-            || (needs.build_docker_image_utility.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;'))
-
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
         uses: ./.github/actions/gcloud-login
@@ -147,31 +124,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs:
       - determine_necessary_jobs
-      - build_docker_image_centos_8
-    # Run even if a dependent job has been skipped
-    if: |
-      contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Jemalloc [centos-8];')
-      && !failure() && !cancelled()
+    if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Jemalloc [centos-8];')
     steps:
-      - name: Check whether 'Build Docker image' did not fail
-        run: 'false'
-        if: |
-          false
-            || (needs.build_docker_image_centos_7.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-7;'))
-            || (needs.build_docker_image_centos_8.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-8;'))
-            || (needs.build_docker_image_debian_10.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-10;'))
-            || (needs.build_docker_image_debian_9.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-9;'))
-            || (needs.build_docker_image_ubuntu_18_04.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-18.04;'))
-            || (needs.build_docker_image_ubuntu_20_04.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-20.04;'))
-            || (needs.build_docker_image_utility.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;'))
-
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
         uses: ./.github/actions/gcloud-login
@@ -221,18 +175,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs:
       - determine_necessary_jobs
-      - build_docker_image_utility
-    # Run even if a dependent job has been skipped
-    if: |
-      contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build common DEB;')
-      && !failure() && !cancelled()
+    if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build common DEB;')
     steps:
-      - name: Check whether 'Build Docker image [utility]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_utility.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
-
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
         uses: ./.github/actions/gcloud-login
@@ -270,18 +214,8 @@ jobs:
     runs-on: ubuntu-20.04
     needs:
       - determine_necessary_jobs
-      - build_docker_image_utility
-    # Run even if a dependent job has been skipped
-    if: |
-      contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build common RPM;')
-      && !failure() && !cancelled()
+    if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build common RPM;')
     steps:
-      - name: Check whether 'Build Docker image [utility]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_utility.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
-
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
         uses: ./.github/actions/gcloud-login
@@ -322,7 +256,6 @@ jobs:
     needs:
       - determine_necessary_jobs
       - download_rbenv_source
-      - build_docker_image_utility
     # Run even if a dependent job has been skipped
     if: |
       contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Rbenv DEB;')
@@ -333,11 +266,6 @@ jobs:
         if: |
           needs.download_rbenv_source.result == 'skipped'
           && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Rbenv source;')
-      - name: Check whether 'Build Docker image [utility]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_utility.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
 
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
@@ -382,7 +310,6 @@ jobs:
     needs:
       - determine_necessary_jobs
       - download_rbenv_source
-      - build_docker_image_utility
     # Run even if a dependent job has been skipped
     if: |
       contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Rbenv RPM;')
@@ -393,11 +320,6 @@ jobs:
         if: |
           needs.download_rbenv_source.result == 'skipped'
           && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Rbenv source;')
-      - name: Check whether 'Build Docker image [utility]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_utility.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
 
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
@@ -446,8 +368,6 @@ jobs:
     needs:
       - determine_necessary_jobs
       - build_jemalloc_debian_10
-      - build_docker_image_debian_10
-      - build_docker_image_utility
     # Run even if a dependent job has been skipped
     if: |
       contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Ruby [debian-10/2.7/')
@@ -458,16 +378,6 @@ jobs:
         if: |
           needs.build_jemalloc_debian-10.result == 'skipped'
           && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Jemalloc [debian-10];')
-      - name: Check whether 'Build Docker image [debian-10]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_debian-10.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-10;')
-      - name: Check whether 'Build Docker image [utility]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_utility.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
 
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
@@ -592,8 +502,6 @@ jobs:
     needs:
       - determine_necessary_jobs
       - build_jemalloc_debian_10
-      - build_docker_image_debian_10
-      - build_docker_image_utility
     # Run even if a dependent job has been skipped
     if: |
       contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Ruby [debian-10/2.7.1/')
@@ -604,16 +512,6 @@ jobs:
         if: |
           needs.build_jemalloc_debian-10.result == 'skipped'
           && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Jemalloc [debian-10];')
-      - name: Check whether 'Build Docker image [debian-10]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_debian-10.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-10;')
-      - name: Check whether 'Build Docker image [utility]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_utility.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
 
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
@@ -739,8 +637,6 @@ jobs:
     needs:
       - determine_necessary_jobs
       - build_jemalloc_centos_8
-      - build_docker_image_centos_8
-      - build_docker_image_utility
     # Run even if a dependent job has been skipped
     if: |
       contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Ruby [centos-8/2.7/')
@@ -751,16 +647,6 @@ jobs:
         if: |
           needs.build_jemalloc_centos-8.result == 'skipped'
           && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Jemalloc [centos-8];')
-      - name: Check whether 'Build Docker image [centos-8]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_centos-8.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-8;')
-      - name: Check whether 'Build Docker image [utility]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_utility.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
 
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
@@ -885,8 +771,6 @@ jobs:
     needs:
       - determine_necessary_jobs
       - build_jemalloc_centos_8
-      - build_docker_image_centos_8
-      - build_docker_image_utility
     # Run even if a dependent job has been skipped
     if: |
       contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Ruby [centos-8/2.7.1/')
@@ -897,16 +781,6 @@ jobs:
         if: |
           needs.build_jemalloc_centos-8.result == 'skipped'
           && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Jemalloc [centos-8];')
-      - name: Check whether 'Build Docker image [centos-8]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_centos-8.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-8;')
-      - name: Check whether 'Build Docker image [utility]' did not fail
-        run: 'false'
-        if: |
-          needs.build_docker_image_utility.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
 
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
