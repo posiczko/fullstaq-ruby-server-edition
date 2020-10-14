@@ -255,18 +255,9 @@ jobs:
     runs-on: ubuntu-20.04
     needs:
       - determine_necessary_jobs
-      - download_rbenv_source
     # Run even if a dependent job has been skipped
-    if: |
-      contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Rbenv DEB;')
-      && !failure() && !cancelled()
+    if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Rbenv DEB;')
     steps:
-      - name: Check whether 'Download Rbenv source' did not fail
-        run: 'false'
-        if: |
-          needs.download_rbenv_source.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Rbenv source;')
-
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
         uses: ./.github/actions/gcloud-login
@@ -309,18 +300,9 @@ jobs:
     runs-on: ubuntu-20.04
     needs:
       - determine_necessary_jobs
-      - download_rbenv_source
     # Run even if a dependent job has been skipped
-    if: |
-      contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Rbenv RPM;')
-      && !failure() && !cancelled()
+    if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Rbenv RPM;')
     steps:
-      - name: Check whether 'Download Rbenv source' did not fail
-        run: 'false'
-        if: |
-          needs.download_rbenv_source.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Rbenv source;')
-
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
         uses: ./.github/actions/gcloud-login
