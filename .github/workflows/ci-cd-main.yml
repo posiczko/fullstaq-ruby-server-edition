@@ -27,7 +27,7 @@ env:
   ## if we're running the given CI run number. Useful for
   ## speeding up development of the CI itself, in order to
   ## avoid rebuilding.
-  CI_ARTIFACTS_RUN_NUMBER: ${{ github.run_number }}
+  CI_ARTIFACTS_RUN_NUMBER: 7 #${{ github.run_number }}
 
 jobs:
   # Determines which jobs should be run, or (in case this is a re-run)
