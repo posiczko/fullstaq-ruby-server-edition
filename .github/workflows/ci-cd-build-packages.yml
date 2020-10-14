@@ -44,7 +44,7 @@ jobs:
       - name: Dump inputs
         run: echo "$INPUTS"
         env:
-          INPUTS: toJSON(${{ github.event.inputs }})
+          INPUTS: ${{ toJSON(github.event.inputs) }}
 
       - name: Mark check as 'in progress'
         uses: LouisBrunner/checks-action@v1.1.0
@@ -54,6 +54,10 @@ jobs:
           check_id: ${{ github.event.inputs.check_id }}
           status: in_progress
           details_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          output: |
+            {
+              "summary": "Packages are being built in another workflow.\n[**➜ See workflow run #${{ github.run_id }} for logs**](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            }
 
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
