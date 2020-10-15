@@ -585,7 +585,7 @@ jobs:
       - name: Trigger workflow for 'Publish & test against test repos'
         uses: benc-uk/workflow-dispatch@v1.1
         with:
-          workflow: 'CI/CD: publish & test against test repos'
+          workflow: ci-cd-publish-test-test.yml
           token: ${{ secrets.WORKFLOW_DISPATCH_TOKEN }}
           inputs: |
             {
@@ -612,7 +612,7 @@ jobs:
           check_id: ${{ github.event.inputs.check_id }}
           conclusion: failure
 
-      - name: Mark check as 'failure'
+      - name: Mark check as 'cancelled'
         uses: LouisBrunner/checks-action@v1.1.0
         if: 'github.event.inputs.check_id && cancelled()'
         with:
