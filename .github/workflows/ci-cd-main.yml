@@ -415,15 +415,14 @@ jobs:
           path: output
 
 
-  ### Publish all artifacts in Google Cloud as Github Actions artifacts ###
+  ### Finalize ###
 
-  # We publish these artifacts in a dedicated job instead
-  # of in each job individually, because the individual jobs
-  # could be skipped during a re-run.
-  publish_github_actions_artifacts:
-    name: Publish artifacts to Github Actions
+  finalize:
+    name: Finalize
     needs:
       - determine_necessary_jobs
+      - check_workflow_uptodate
+      - check_version_numbers_need_bumping
       - download_rbenv_source
       - build_docker_image_centos_7
       - build_docker_image_centos_8
@@ -434,53 +433,31 @@ jobs:
       - build_docker_image_utility
       - download_ruby_source_2_7_1
     runs-on: ubuntu-20.04
-    # Run even if a dependent job has been skipped
-    if: '!failure() && !cancelled()'
+    if: 'always()'
     steps:
-      - name: Check whether 'Download Rbenv source' did not fail
-        run: 'false'
-        if: |
-          needs.download_rbenv_source.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Rbenv source;')
-      - name: Check whether 'Build Docker image' did not fail
-        run: 'false'
-        if: |
-          false
-            || (needs.build_docker_image_centos_7.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-7;'))
-            || (needs.build_docker_image_centos_8.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-8;'))
-            || (needs.build_docker_image_debian_10.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-10;'))
-            || (needs.build_docker_image_debian_9.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-9;'))
-            || (needs.build_docker_image_ubuntu_18_04.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-18.04;'))
-            || (needs.build_docker_image_ubuntu_20_04.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-20.04;'))
-            || (needs.build_docker_image_utility.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;'))
-      - name: Check whether 'Download Ruby source' did not fail
-        run: 'false'
-        if: |
-          false
-            || (needs.download_ruby_source_2_7_1.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.7.1;'))
-
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
         uses: ./.github/actions/gcloud-login
         with:
           private_key: ${{ secrets.GCLOUD_KEY }}
 
+
+      ### Publish all artifacts in Google Cloud as Github Actions artifacts ###
+      # We publish these artifacts in a dedicated job instead
+      # of in each job individually, because the individual jobs
+      # could be skipped during a re-run.
+
       - name: Download Rbenv source artifact from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: rbenv_source
+        continue-on-error: true
         with:
           name: rbenv-src
           path: artifacts
           clear: true
       - name: Archive Rbenv source artifact to Github
         uses: actions/upload-artifact@v2
+        if: steps.rbenv_source.outcome == 'success'
         with:
           name: rbenv-src
           path: artifacts
@@ -488,6 +465,8 @@ jobs:
 
       - name: Download Docker image artifact [centos-7] from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: docker_image_centos_7
+        continue-on-error: true
         if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-7;')
         with:
           name: 'docker-image-centos-7'
@@ -495,12 +474,16 @@ jobs:
           clear: true
       - name: Archive Docker image artifact [centos-7] to Github
         uses: actions/upload-artifact@v2
-        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-7;')
+        if: |
+          contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-7;')
+          && steps.docker_image_centos_7.outcome == 'success'
         with:
           name: 'docker-image-centos-7'
           path: artifacts
       - name: Download Docker image artifact [centos-8] from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: docker_image_centos_8
+        continue-on-error: true
         if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-8;')
         with:
           name: 'docker-image-centos-8'
@@ -508,12 +491,16 @@ jobs:
           clear: true
       - name: Archive Docker image artifact [centos-8] to Github
         uses: actions/upload-artifact@v2
-        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-8;')
+        if: |
+          contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image centos-8;')
+          && steps.docker_image_centos_8.outcome == 'success'
         with:
           name: 'docker-image-centos-8'
           path: artifacts
       - name: Download Docker image artifact [debian-10] from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: docker_image_debian_10
+        continue-on-error: true
         if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-10;')
         with:
           name: 'docker-image-debian-10'
@@ -521,12 +508,16 @@ jobs:
           clear: true
       - name: Archive Docker image artifact [debian-10] to Github
         uses: actions/upload-artifact@v2
-        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-10;')
+        if: |
+          contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-10;')
+          && steps.docker_image_debian_10.outcome == 'success'
         with:
           name: 'docker-image-debian-10'
           path: artifacts
       - name: Download Docker image artifact [debian-9] from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: docker_image_debian_9
+        continue-on-error: true
         if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-9;')
         with:
           name: 'docker-image-debian-9'
@@ -534,12 +525,16 @@ jobs:
           clear: true
       - name: Archive Docker image artifact [debian-9] to Github
         uses: actions/upload-artifact@v2
-        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-9;')
+        if: |
+          contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image debian-9;')
+          && steps.docker_image_debian_9.outcome == 'success'
         with:
           name: 'docker-image-debian-9'
           path: artifacts
       - name: Download Docker image artifact [ubuntu-18.04] from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: docker_image_ubuntu_18_04
+        continue-on-error: true
         if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-18.04;')
         with:
           name: 'docker-image-ubuntu-18.04'
@@ -547,12 +542,16 @@ jobs:
           clear: true
       - name: Archive Docker image artifact [ubuntu-18.04] to Github
         uses: actions/upload-artifact@v2
-        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-18.04;')
+        if: |
+          contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-18.04;')
+          && steps.docker_image_ubuntu_18_04.outcome == 'success'
         with:
           name: 'docker-image-ubuntu-18.04'
           path: artifacts
       - name: Download Docker image artifact [ubuntu-20.04] from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: docker_image_ubuntu_20_04
+        continue-on-error: true
         if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-20.04;')
         with:
           name: 'docker-image-ubuntu-20.04'
@@ -560,12 +559,16 @@ jobs:
           clear: true
       - name: Archive Docker image artifact [ubuntu-20.04] to Github
         uses: actions/upload-artifact@v2
-        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-20.04;')
+        if: |
+          contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image ubuntu-20.04;')
+          && steps.docker_image_ubuntu_20_04.outcome == 'success'
         with:
           name: 'docker-image-ubuntu-20.04'
           path: artifacts
       - name: Download Docker image artifact [utility] from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: docker_image_utility
+        continue-on-error: true
         if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
         with:
           name: 'docker-image-utility'
@@ -573,7 +576,9 @@ jobs:
           clear: true
       - name: Archive Docker image artifact [utility] to Github
         uses: actions/upload-artifact@v2
-        if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
+        if: |
+          contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image utility;')
+          && steps.docker_image_utility.outcome == 'success'
         with:
           name: 'docker-image-utility'
           path: artifacts
@@ -581,47 +586,23 @@ jobs:
 
       - name: Download Ruby source artifact [2.7.1] from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: ruby_source_2_7_1
+        continue-on-error: true
         with:
           name: ruby-src-2.7.1
           path: artifacts
           clear: true
       - name: Archive Ruby source artifact [2.7.1] to Github
         uses: actions/upload-artifact@v2
+        if: steps.ruby_source_2_7_1.outcome == 'success'
         with:
           name: ruby-src-2.7.1
           path: artifacts
 
 
-  ### Trigger next workflows ###
+      ### Check whether dependent jobs failed ###
+      # Only trigger next workflow if there are no failures.
 
-  trigger_next_workflows:
-    name: Trigger next workflows
-    needs:
-      - check_workflow_uptodate
-      - check_version_numbers_need_bumping
-      - download_rbenv_source
-
-      - build_docker_image_centos_7
-
-      - build_docker_image_centos_8
-
-      - build_docker_image_debian_10
-
-      - build_docker_image_debian_9
-
-      - build_docker_image_ubuntu_18_04
-
-      - build_docker_image_ubuntu_20_04
-
-      - build_docker_image_utility
-
-
-      - download_ruby_source_2_7_1
-
-    runs-on: ubuntu-20.04
-    # Run even if a dependent job has been skipped
-    if: '!failure() && !cancelled()'
-    steps:
       - name: Check whether 'Download Rbenv source' did not fail
         run: 'false'
         if: |
@@ -652,9 +633,12 @@ jobs:
             || (needs.download_ruby_source_2_7_1.result == 'skipped'
               && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source 2.7.1;'))
 
+
+      ### Trigger next workflow ###
+
       - name: Create check for 'Build packages'
         uses: LouisBrunner/checks-action@v1.1.0
-        id: create_check_build_packages
+        id: create_check
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           name: Build packages
@@ -668,5 +652,5 @@ jobs:
           inputs: |
             {
               "ci_artifacts_run_number": "${{ env.CI_ARTIFACTS_RUN_NUMBER }}",
-              "check_id": "${{ steps.create_check_build_packages.outputs.check_id }}"
+              "check_id": "${{ steps.create_check.outputs.check_id }}"
             }

@@ -13,11 +13,6 @@ on:
 env:
   BINTRAY_ORG: fullstaq
   CI_ARTIFACTS_BUCKET: fullstaq-ruby-server-edition-ci-artifacts
-  ## Set the following variable to a specific number to make the
-  ## Google Cloud artifact upload/download actions treat as
-  ## if we're running the given CI run number. Useful for
-  ## speeding up development of the CI itself, in order to
-  ## avoid rebuilding.
   CI_ARTIFACTS_RUN_NUMBER: ${{ github.event.inputs.ci_artifacts_run_number || github.run_number }}
 
 jobs:
@@ -46,7 +41,7 @@ jobs:
           details_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           output: |
             {
-              "summary": "Packages are being built in another workflow.\n[**➜ See workflow run #${{ github.run_id }} for logs**](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+              "summary": "Packages are built in another workflow.\n[**➜ See workflow run #${{ github.run_id }} for logs**](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
             }
 
       - uses: actions/checkout@v2
@@ -402,13 +397,10 @@ jobs:
   <%- end %>
 
 
-  ### Publish all artifacts in Google Cloud as Github Actions artifacts ###
+  ### Finalize ###
 
-  # We publish these artifacts in a dedicated job instead
-  # of in each job individually, because the individual jobs
-  # could be skipped during a re-run.
-  publish_github_actions_artifacts:
-    name: Publish artifacts to Github Actions
+  finalize:
+    name: Finalize
     needs:
       - determine_necessary_jobs
       - build_common_deb
@@ -424,9 +416,122 @@ jobs:
       <%- end %>
       <%- end -%>
     runs-on: ubuntu-20.04
-    # Run even if a dependent job has been skipped
-    if: '!failure() && !cancelled()'
+    if: 'always()'
     steps:
+      - uses: actions/checkout@v2
+      - name: Login to Google Cloud
+        uses: ./.github/actions/gcloud-login
+        with:
+          private_key: ${{ secrets.GCLOUD_KEY }}
+
+
+      ### Publish all artifacts in Google Cloud as Github Actions artifacts ###
+      # We publish these artifacts in a dedicated job instead
+      # of in each job individually, because the individual jobs
+      # could be skipped during a re-run.
+
+      - name: Download common DEB artifact from Google Cloud
+        uses: ./.github/actions/download-artifact
+        id: common_deb
+        continue-on-error: true
+        with:
+          name: <%= common_deb_artifact_name %>
+          path: artifacts
+          clear: true
+      - name: Archive common DEB artifact to Github
+        uses: actions/upload-artifact@v2
+        if: steps.common_deb.outcome == 'success'
+        with:
+          name: <%= common_deb_artifact_name %>
+          path: artifacts
+
+      - name: Download common RPM artifact from Google Cloud
+        uses: ./.github/actions/download-artifact
+        id: common_rpm
+        continue-on-error: true
+        with:
+          name: <%= common_rpm_artifact_name %>
+          path: artifacts
+          clear: true
+      - name: Archive common RPM artifact to Github
+        uses: actions/upload-artifact@v2
+        if: steps.common_rpm.outcome == 'success'
+        with:
+          name: <%= common_rpm_artifact_name %>
+          path: artifacts
+
+      - name: Download Rbenv DEB artifact from Google Cloud
+        uses: ./.github/actions/download-artifact
+        id: rbenv_deb
+        continue-on-error: true
+        with:
+          name: <%= rbenv_deb_artifact_name %>
+          path: artifacts
+          clear: true
+      - name: Archive Rbenv DEB artifact to Github
+        uses: actions/upload-artifact@v2
+        if: steps.rbenv_deb.outcome == 'success'
+        with:
+          name: <%= rbenv_deb_artifact_name %>
+          path: artifacts
+
+      - name: Download Rbenv RPM artifact from Google Cloud
+        uses: ./.github/actions/download-artifact
+        id: rbenv_rpm
+        continue-on-error: true
+        with:
+          name: <%= rbenv_rpm_artifact_name %>
+          path: artifacts
+          clear: true
+      - name: Archive Rbenv RPM artifact to Github
+        uses: actions/upload-artifact@v2
+        if: steps.rbenv_rpm.outcome == 'success'
+        with:
+          name: <%= rbenv_rpm_artifact_name %>
+          path: artifacts
+
+      <%- distributions.each do |distribution| %>
+      <%- unindent(2) do -%>
+        - name: Download Jemalloc binary artifact [<%= distribution[:name] %>] from Google Cloud
+          uses: ./.github/actions/download-artifact
+          id: jemalloc_<%= slug(distribution[:name]) %>
+          continue-on-error: true
+          with:
+            name: 'jemalloc-bin-<%= distribution[:name] %>'
+            path: artifacts
+            clear: true
+        - name: Archive Jemalloc binary artifact [<%= distribution[:name] %>] to Github
+          uses: actions/upload-artifact@v2
+          if: steps.jemalloc_<%= slug(distribution[:name]) %>.outcome == 'success'
+          with:
+            name: 'jemalloc-bin-<%= distribution[:name] %>'
+            path: artifacts
+      <%- end -%>
+      <%- end %>
+
+      <%- ruby_package_artifact_names.each do |artifact_name| %>
+      <%- unindent(2) do -%>
+        - name: Download Ruby package artifact [<%= artifact_name %>] from Google Cloud
+          uses: ./.github/actions/download-artifact
+          id: <%= slug(artifact_name) %>
+          continue-on-error: true
+          with:
+            name: <%= artifact_name %>
+            path: artifacts
+            clear: true
+        - name: Archive Ruby package artifact [<%= artifact_name %>] to Github
+          uses: actions/upload-artifact@v2
+          if: steps.<%= slug(artifact_name) %>.outcome == 'success'
+          with:
+            name: <%= artifact_name %>
+            path: artifacts
+      <%- end -%>
+      <%- end %>
+
+
+      ### Check whether dependent jobs failed ###
+      # Only trigger next workflow if there are no failures.
+
       - name: Check whether 'Build common DEB' did not fail
         run: 'false'
         if: |
@@ -466,89 +571,51 @@ jobs:
           <%- end %>
           <%- end -%>
 
-      - uses: actions/checkout@v2
-      - name: Login to Google Cloud
-        uses: ./.github/actions/gcloud-login
-        with:
-          private_key: ${{ secrets.GCLOUD_KEY }}
 
-      - name: Download common DEB artifact from Google Cloud
-        uses: ./.github/actions/download-artifact
-        with:
-          name: <%= common_deb_artifact_name %>
-          path: artifacts
-          clear: true
-      - name: Archive common DEB artifact to Github
-        uses: actions/upload-artifact@v2
-        with:
-          name: <%= common_deb_artifact_name %>
-          path: artifacts
+      ### Trigger next workflow ###
 
-      - name: Download common RPM artifact from Google Cloud
-        uses: ./.github/actions/download-artifact
+      - name: Create check for 'Publish & test against test repos'
+        uses: LouisBrunner/checks-action@v1.1.0
+        id: create_check
         with:
-          name: <%= common_rpm_artifact_name %>
-          path: artifacts
-          clear: true
-      - name: Archive common RPM artifact to Github
-        uses: actions/upload-artifact@v2
-        with:
-          name: <%= common_rpm_artifact_name %>
-          path: artifacts
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: Publish & test against test repos
+          status: queued
 
-      - name: Download Rbenv DEB artifact from Google Cloud
-        uses: ./.github/actions/download-artifact
+      - name: Trigger workflow for 'Publish & test against test repos'
+        uses: benc-uk/workflow-dispatch@v1.1
         with:
-          name: <%= rbenv_deb_artifact_name %>
-          path: artifacts
-          clear: true
-      - name: Archive Rbenv DEB artifact to Github
-        uses: actions/upload-artifact@v2
+          workflow: 'CI/CD: publish & test against test repos'
+          token: ${{ secrets.WORKFLOW_DISPATCH_TOKEN }}
+          inputs: |
+            {
+              "ci_artifacts_run_number": "${{ env.CI_ARTIFACTS_RUN_NUMBER }}",
+              "check_id": "${{ steps.create_check.outputs.check_id }}"
+            }
+
+
+      ### Update own check status ###
+
+      - name: Mark check as 'success'
+        uses: LouisBrunner/checks-action@v1.1.0
+        if: 'github.event.inputs.check_id && success()'
         with:
-          name: <%= rbenv_deb_artifact_name %>
-          path: artifacts
+          token: ${{ secrets.GITHUB_TOKEN }}
+          check_id: ${{ github.event.inputs.check_id }}
+          conclusion: success
 
-      - name: Download Rbenv RPM artifact from Google Cloud
-        uses: ./.github/actions/download-artifact
+      - name: Mark check as 'failure'
+        uses: LouisBrunner/checks-action@v1.1.0
+        if: 'github.event.inputs.check_id && failure()'
         with:
-          name: <%= rbenv_rpm_artifact_name %>
-          path: artifacts
-          clear: true
-      - name: Archive Rbenv RPM artifact to Github
-        uses: actions/upload-artifact@v2
+          token: ${{ secrets.GITHUB_TOKEN }}
+          check_id: ${{ github.event.inputs.check_id }}
+          conclusion: failure
+
+      - name: Mark check as 'failure'
+        uses: LouisBrunner/checks-action@v1.1.0
+        if: 'github.event.inputs.check_id && cancelled()'
         with:
-          name: <%= rbenv_rpm_artifact_name %>
-          path: artifacts
-
-      <%- distributions.each do |distribution| %>
-      <%- unindent(2) do -%>
-        - name: Download Jemalloc binary artifact [<%= distribution[:name] %>] from Google Cloud
-          uses: ./.github/actions/download-artifact
-          with:
-            name: 'jemalloc-bin-<%= distribution[:name] %>'
-            path: artifacts
-            clear: true
-        - name: Archive Jemalloc binary artifact [<%= distribution[:name] %>] to Github
-          uses: actions/upload-artifact@v2
-          with:
-            name: 'jemalloc-bin-<%= distribution[:name] %>'
-            path: artifacts
-      <%- end -%>
-      <%- end %>
-
-      <%- ruby_package_artifact_names.each do |artifact_name| %>
-      <%- unindent(2) do -%>
-        - name: Download Ruby package artifact [<%= artifact_name %>] from Google Cloud
-          uses: ./.github/actions/download-artifact
-          with:
-            name: <%= artifact_name %>
-            path: artifacts
-            clear: true
-        - name: Archive Ruby package artifact [<%= artifact_name %>] to Github
-          uses: actions/upload-artifact@v2
-          with:
-            name: <%= artifact_name %>
-            path: artifacts
-      <%- end -%>
-      <%- end %>
-
+          token: ${{ secrets.GITHUB_TOKEN }}
+          check_id: ${{ github.event.inputs.check_id }}
+          conclusion: cancelled

@@ -224,15 +224,14 @@ jobs:
           path: output
 
 
-  ### Publish all artifacts in Google Cloud as Github Actions artifacts ###
+  ### Finalize ###
 
-  # We publish these artifacts in a dedicated job instead
-  # of in each job individually, because the individual jobs
-  # could be skipped during a re-run.
-  publish_github_actions_artifacts:
-    name: Publish artifacts to Github Actions
+  finalize:
+    name: Finalize
     needs:
       - determine_necessary_jobs
+      - check_workflow_uptodate
+      - check_version_numbers_need_bumping
       - download_rbenv_source
       <%- docker_images.each do |image| -%>
       - build_docker_image_<%= slug(image[:id]) %>
@@ -241,45 +240,31 @@ jobs:
       - download_ruby_source_<%= slug(ruby_version) %>
       <%- end -%>
     runs-on: ubuntu-20.04
-    # Run even if a dependent job has been skipped
-    if: '!failure() && !cancelled()'
+    if: 'always()'
     steps:
-      - name: Check whether 'Download Rbenv source' did not fail
-        run: 'false'
-        if: |
-          needs.download_rbenv_source.result == 'skipped'
-          && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Rbenv source;')
-      - name: Check whether 'Build Docker image' did not fail
-        run: 'false'
-        if: |
-          false
-          <%- docker_images.each do |image| -%>
-            || (needs.build_docker_image_<%= slug(image[:id]) %>.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image <%= image[:id] %>;'))
-          <%- end -%>
-      - name: Check whether 'Download Ruby source' did not fail
-        run: 'false'
-        if: |
-          false
-          <%- ruby_source_versions.each do |ruby_version| -%>
-            || (needs.download_ruby_source_<%= slug(ruby_version) %>.result == 'skipped'
-              && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source <%= ruby_version %>;'))
-          <%- end -%>
-
       - uses: actions/checkout@v2
       - name: Login to Google Cloud
         uses: ./.github/actions/gcloud-login
         with:
           private_key: ${{ secrets.GCLOUD_KEY }}
 
+
+      ### Publish all artifacts in Google Cloud as Github Actions artifacts ###
+      # We publish these artifacts in a dedicated job instead
+      # of in each job individually, because the individual jobs
+      # could be skipped during a re-run.
+
       - name: Download Rbenv source artifact from Google Cloud
         uses: ./.github/actions/download-artifact
+        id: rbenv_source
+        continue-on-error: true
         with:
           name: <%= rbenv_source_artifact_name %>
           path: artifacts
           clear: true
       - name: Archive Rbenv source artifact to Github
         uses: actions/upload-artifact@v2
+        if: steps.rbenv_source.outcome == 'success'
         with:
           name: <%= rbenv_source_artifact_name %>
           path: artifacts
@@ -288,6 +273,8 @@ jobs:
       <%- unindent(2) do -%>
         - name: Download Docker image artifact [<%= image[:id] %>] from Google Cloud
           uses: ./.github/actions/download-artifact
+          id: docker_image_<%= slug(image[:id]) %>
+          continue-on-error: true
           if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image <%= image[:id] %>;')
           with:
             name: 'docker-image-<%= image[:id] %>'
@@ -295,7 +282,9 @@ jobs:
             clear: true
         - name: Archive Docker image artifact [<%= image[:id] %>] to Github
           uses: actions/upload-artifact@v2
-          if: contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image <%= image[:id] %>;')
+          if: |
+            contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Build Docker image <%= image[:id] %>;')
+            && steps.docker_image_<%= slug(image[:id]) %>.outcome == 'success'
           with:
             name: 'docker-image-<%= image[:id] %>'
             path: artifacts
@@ -306,12 +295,15 @@ jobs:
       <%- unindent(2) do -%>
         - name: Download Ruby source artifact [<%= ruby_version %>] from Google Cloud
           uses: ./.github/actions/download-artifact
+          id: ruby_source_<%= slug(ruby_version) %>
+          continue-on-error: true
           with:
             name: <%= ruby_source_artifact_name(ruby_version) %>
             path: artifacts
             clear: true
         - name: Archive Ruby source artifact [<%= ruby_version %>] to Github
           uses: actions/upload-artifact@v2
+          if: steps.ruby_source_<%= slug(ruby_version) %>.outcome == 'success'
           with:
             name: <%= ruby_source_artifact_name(ruby_version) %>
             path: artifacts
@@ -319,24 +311,9 @@ jobs:
       <%- end %>
 
 
-  ### Trigger next workflows ###
+      ### Check whether dependent jobs failed ###
+      # Only trigger next workflow if there are no failures.
 
-  trigger_next_workflows:
-    name: Trigger next workflows
-    needs:
-      - check_workflow_uptodate
-      - check_version_numbers_need_bumping
-      - download_rbenv_source
-      <%- docker_images.each do |image| %>
-      - build_docker_image_<%= slug(image[:id]) %>
-      <%- end %>
-      <%- ruby_source_versions.each do |ruby_version| %>
-      - download_ruby_source_<%= slug(ruby_version) %>
-      <%- end %>
-    runs-on: ubuntu-20.04
-    # Run even if a dependent job has been skipped
-    if: '!failure() && !cancelled()'
-    steps:
       - name: Check whether 'Download Rbenv source' did not fail
         run: 'false'
         if: |
@@ -359,9 +336,12 @@ jobs:
               && contains(needs.determine_necessary_jobs.outputs.necessary_jobs, ';Download Ruby source <%= ruby_version %>;'))
           <%- end -%>
 
+
+      ### Trigger next workflow ###
+
       - name: Create check for 'Build packages'
         uses: LouisBrunner/checks-action@v1.1.0
-        id: create_check_build_packages
+        id: create_check
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           name: Build packages
@@ -375,5 +355,5 @@ jobs:
           inputs: |
             {
               "ci_artifacts_run_number": "${{ env.CI_ARTIFACTS_RUN_NUMBER }}",
-              "check_id": "${{ steps.create_check_build_packages.outputs.check_id }}"
+              "check_id": "${{ steps.create_check.outputs.check_id }}"
             }
